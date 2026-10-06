@@ -9,6 +9,10 @@ import (
 
 func (s *Service) CreateFormula(input CreateFormulaInput) (domain.Formula, error) {
 	now := s.clock.Now()
+	tags := domain.NormalizeTags(input.Tags)
+	if err := domain.ValidateTags(tags); err != nil {
+		return domain.Formula{}, err
+	}
 	formula := domain.Formula{
 		Name:                  input.Name,
 		Style:                 input.Style,
@@ -18,6 +22,7 @@ func (s *Service) CreateFormula(input CreateFormulaInput) (domain.Formula, error
 		MinimumDays:           input.MinimumDays,
 		MaximumDays:           input.MaximumDays,
 		Steps:                 []domain.FormulaStep{},
+		Tags:                  tags,
 		State:                 domain.FormulaDraft,
 		Version:               1,
 		CreatedAt:             now,

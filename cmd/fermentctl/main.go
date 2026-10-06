@@ -13,6 +13,7 @@ import (
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/clock"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/config"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/httpapi"
+	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/search"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/service"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/storage"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/workflowcheck"
@@ -62,6 +63,12 @@ func serve() error {
 		return err
 	}
 	app := service.New(store, clock.System{})
+	index, err := search.NewEngine(store, clock.System{}.Now)
+	if err != nil {
+		return fmt.Errorf("build initial search index: %w", err)
+	}
+	defer index.Stop()
+	app.AttachSearchIndex(index)
 	server := &http.Server{
 		Addr:              cfg.Address,
 		Handler:           httpapi.NewHandler(app),

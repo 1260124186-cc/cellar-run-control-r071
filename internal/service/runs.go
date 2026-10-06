@@ -8,6 +8,10 @@ import (
 
 func (s *Service) CreateRun(input CreateRunInput) (domain.FermentationRun, error) {
 	now := s.clock.Now()
+	tags := domain.NormalizeTags(input.Tags)
+	if err := domain.ValidateTags(tags); err != nil {
+		return domain.FermentationRun{}, err
+	}
 	code := domain.NormalizeRunCode(input.Code)
 	if code == "" {
 		generated, err := generatedRunCode()
@@ -21,6 +25,7 @@ func (s *Service) CreateRun(input CreateRunInput) (domain.FermentationRun, error
 		FormulaID:      input.FormulaID,
 		PlannedVolumeL: input.PlannedVolumeL,
 		Notes:          input.Notes,
+		Tags:           tags,
 		State:          domain.RunPlanned,
 		Observations:   []domain.GravityObservation{},
 		Version:        1,

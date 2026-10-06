@@ -5,12 +5,14 @@ import (
 
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/clock"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/domain"
+	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/search"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/storage"
 )
 
 type Service struct {
-	store *storage.Store
-	clock clock.Clock
+	store       *storage.Store
+	clock       clock.Clock
+	searchIndex *search.Engine
 }
 
 func New(store *storage.Store, timeSource clock.Clock) *Service {

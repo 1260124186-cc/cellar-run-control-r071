@@ -22,6 +22,9 @@ const (
 	CodeRunState            Code = "invalid_run_state"
 	CodeObservationConflict Code = "observation_conflict"
 	CodeRevisionConflict    Code = "revision_conflict"
+	CodeSearchCursor        Code = "invalid_cursor"
+	CodeSearchStale         Code = "cursor_expired"
+	CodeSearchRebuilding    Code = "index_unavailable"
 	CodeStorage             Code = "storage_error"
 )
 

@@ -52,10 +52,11 @@ go run ./cmd/fermentctl serve
 cmd/fermentctl                 service and workflow-check executable
 internal/clock                 time boundary
 internal/config                environment configuration
-internal/domain                entities, validation, transitions, metrics
+internal/domain                entities, tags, validation, transitions, metrics
 internal/httpapi               HTTP routes, JSON decoding, errors
+internal/search                rebuildable generationed search index
 internal/service               use-case orchestration
-internal/storage               revisioned snapshot persistence
+internal/storage               revisioned snapshot persistence with commit hooks
 internal/workflowcheck         real HTTP production checks
 ```
 
@@ -94,6 +95,50 @@ Run workflow:
 - `POST /v1/runs/{id}/complete`
 - `POST /v1/runs/{id}/abort`
 
+Search index:
+
+- `GET /v1/search`
+- `POST /v1/search/rebuild`
+- `GET /v1/search/status`
+- `GET /v1/search/tags`
+
+Formulas, vessels, and runs accept an optional lowercase `tags` array (at
+most 8, each 1–32 lowercase letters, digits, or internal hyphens) on
+creation. Tags are part of the searchable text and the tag filter.
+
+### Search
+
+`GET /v1/search` covers formula names and styles, vessel codes, run codes,
+and tags. Query parameters are combined with AND semantics:
+
+- `q`: free text; whitespace separates words, each of which must match.
+  Codes match with or without hyphens (`fv100` finds `FV-100`).
+- `kind`: `formula`, `vessel`, or `run`; repeatable / comma-separated.
+- `state`: repeatable / comma-separated; validated against the selected
+  kinds, so a vessel code and a run state can be narrowed simultaneously.
+- `vessel_code`: exact vessel code; for runs it matches the vessel the run
+  currently occupies, resolved from the live snapshot.
+- `tag`: repeatable; every listed tag must be present on one entity.
+- `include_archived`: set `true` to include retired formulas and vessels and
+  aborted runs. Archived entities are hidden by default.
+- `limit`: 1–100, default 25.
+- `cursor`: opaque continuation token returned as `next_cursor`.
+
+Results carry a `ref` (`kind`, `id`, `path`) that links straight to the
+detail endpoint, e.g. `/v1/vessels/vessel_...`. Ordering is stable: most
+recently updated first, then kind, then ID. Each page is pinned to one
+immutable index generation carried inside the cursor; an expired generation
+returns `410 cursor_expired`, so the client restarts without a cursor.
+
+The index is fully derived from the snapshot and holds no truth of its own:
+every hit is re-resolved against the current committed snapshot before it is
+returned, so an index that lags during heavy writes, a rebuild interrupted by
+restart, or an archived entity can never surface an object that no longer
+exists, and run results can never inherit another vessel's facts. Writes
+notify the engine asynchronously (they never block on indexing); the engine
+coalesces notifications and also supports a synchronous forced rebuild via
+`POST /v1/search/rebuild`.
+
 Writes accept an optional `X-Expected-Version` header. Errors use a stable
 shape:
 
@@ -115,6 +160,7 @@ Run each production workflow check separately:
 go run ./cmd/fermentctl check formula-approval
 go run ./cmd/fermentctl check vessel-run-lifecycle
 go run ./cmd/fermentctl check observations-completion
+go run ./cmd/fermentctl check search-index
 ```
 
 Each check creates a temporary snapshot directory, starts the real HTTP

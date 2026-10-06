@@ -7,8 +7,9 @@ import (
 )
 
 type createVesselRequest struct {
-	Code      string  `json:"code"`
-	CapacityL float64 `json:"capacity_liters"`
+	Code      string   `json:"code"`
+	CapacityL float64  `json:"capacity_liters"`
+	Tags      []string `json:"tags"`
 }
 
 func registerVesselRoutes(mux *http.ServeMux, app *service.Service) {
@@ -20,6 +21,7 @@ func registerVesselRoutes(mux *http.ServeMux, app *service.Service) {
 		vessel, err := app.CreateVessel(service.CreateVesselInput{
 			Code:      body.Code,
 			CapacityL: body.CapacityL,
+			Tags:      body.Tags,
 		})
 		if err != nil {
 			writeDomainError(response, err)

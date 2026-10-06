@@ -159,6 +159,8 @@ domain rules, and snapshot storage.
 - `internal/domain`: entities, validation, state transitions, and metrics.
 - `internal/service`: use-case orchestration and revision coordination.
 - `internal/storage`: snapshot repository, atomic replacement, and locking.
+- `internal/search`: rebuildable, generationed search index with opaque
+  cursors and live snapshot resolution.
 - `internal/httpapi`: routing, strict JSON decoding, error mapping, and health.
 - `internal/workflowcheck`: real HTTP workflow checks used by the executable.
 
@@ -201,6 +203,24 @@ published in memory unless persistence succeeds.
 Reads use copied values and never expose repository-owned maps or slices. The
 default address is `127.0.0.1:8088`, the request body limit is 1 MiB, and all
 workflow checks use temporary directories.
+
+### Search Index
+
+The search index is a fully derived, in-memory projection of the committed
+snapshot covering formula name and style, vessel code, run code, and tags.
+The engine builds immutable generations: the first generation is built
+synchronously at startup, committed writes nudge an asynchronous coalescing
+rebuild, and a forced rebuild is available. Searches pin ordering and
+pagination to one generation via an opaque cursor; a bounded set of recent
+generations is retained so in-flight pagination survives new writes, and an
+expired cursor returns a stable error.
+
+Every candidate is re-resolved against the current live snapshot before it is
+returned. Consequently a lagging, restarted, or half-rebuilt index cannot
+return an entity that has been deleted or archived, and a run result reads
+its vessel facts from the same live snapshot, never from another vessel. The
+index never persists truth of its own: rebuilding from the current snapshot
+always reproduces it.
 
 ## Validation Plan
 

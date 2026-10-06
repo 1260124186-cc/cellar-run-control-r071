@@ -8,10 +8,11 @@ import (
 )
 
 type createRunRequest struct {
-	Code           string  `json:"code"`
-	FormulaID      string  `json:"formula_id"`
-	PlannedVolumeL float64 `json:"planned_volume_liters"`
-	Notes          string  `json:"notes"`
+	Code           string   `json:"code"`
+	FormulaID      string   `json:"formula_id"`
+	PlannedVolumeL float64  `json:"planned_volume_liters"`
+	Notes          string   `json:"notes"`
+	Tags           []string `json:"tags"`
 }
 
 type reserveRunRequest struct {
@@ -37,6 +38,7 @@ func registerRunRoutes(mux *http.ServeMux, app *service.Service) {
 			FormulaID:      body.FormulaID,
 			PlannedVolumeL: body.PlannedVolumeL,
 			Notes:          body.Notes,
+			Tags:           body.Tags,
 		})
 		if err != nil {
 			writeDomainError(response, err)

@@ -8,9 +8,14 @@ import (
 
 func (s *Service) CreateVessel(input CreateVesselInput) (domain.Vessel, error) {
 	now := s.clock.Now()
+	tags := domain.NormalizeTags(input.Tags)
+	if err := domain.ValidateTags(tags); err != nil {
+		return domain.Vessel{}, err
+	}
 	vessel := domain.Vessel{
 		Code:      domain.NormalizeVesselCode(input.Code),
 		CapacityL: input.CapacityL,
+		Tags:      tags,
 		State:     domain.VesselAvailable,
 		Version:   1,
 		CreatedAt: now,

@@ -31,7 +31,12 @@
     {
       "id": "storage",
       "path": "internal/storage",
-      "responsibility": "persist and load revisioned JSON snapshots atomically"
+      "responsibility": "persist and load revisioned JSON snapshots atomically and notify committed revisions"
+    },
+    {
+      "id": "search",
+      "path": "internal/search",
+      "responsibility": "maintain rebuildable immutable search generations with cursored, live-resolved queries"
     },
     {
       "id": "httpapi",
@@ -112,6 +117,29 @@
         "service",
         "domain",
         "storage"
+      ]
+    },
+    {
+      "id": "search-index",
+      "name": "Search formulas, vessels, runs, and tags with cursors",
+      "entry": "GET /v1/search",
+      "steps": [
+        "index formula names/styles, vessel and run codes, and tags from the snapshot",
+        "narrow results simultaneously by kind, state, vessel code, and tags",
+        "page with an opaque cursor pinned to one stable index generation",
+        "follow each hit ref back to its detail endpoint",
+        "hide archived entities by default while resolving every hit against the live snapshot",
+        "force a full index rebuild and confirm freshness"
+      ],
+      "success": "returns stable, deduplicated pages that jump to existing detail records",
+      "failure": "returns invalid_input, invalid_cursor, or cursor_expired without leaking archived or cross-vessel facts",
+      "verification": "the check issues real HTTP requests and exercises lag, archival, and rebuild behavior",
+      "module_ids": [
+        "httpapi",
+        "service",
+        "search",
+        "storage",
+        "domain"
       ]
     }
   ]

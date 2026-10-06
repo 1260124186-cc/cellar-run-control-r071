@@ -14,6 +14,7 @@ type CreateFormulaInput struct {
 	MaxFermentationTempC  float64
 	MinimumDays           int
 	MaximumDays           int
+	Tags                  []string
 }
 
 type SetFormulaStepsInput struct {
@@ -28,6 +29,7 @@ type VersionInput struct {
 type CreateVesselInput struct {
 	Code      string
 	CapacityL float64
+	Tags      []string
 }
 
 type CreateRunInput struct {
@@ -35,6 +37,7 @@ type CreateRunInput struct {
 	FormulaID      string
 	PlannedVolumeL float64
 	Notes          string
+	Tags           []string
 }
 
 type ReserveRunInput struct {

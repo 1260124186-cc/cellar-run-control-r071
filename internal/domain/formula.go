@@ -31,6 +31,7 @@ type Formula struct {
 	MinimumDays           int           `json:"minimum_days"`
 	MaximumDays           int           `json:"maximum_days"`
 	Steps                 []FormulaStep `json:"steps"`
+	Tags                  []string      `json:"tags"`
 	State                 FormulaState  `json:"state"`
 	Version               int64         `json:"version"`
 	CreatedAt             time.Time     `json:"created_at"`
@@ -42,6 +43,7 @@ type Formula struct {
 func (f Formula) Clone() Formula {
 	cloned := f
 	cloned.Steps = append([]FormulaStep(nil), f.Steps...)
+	cloned.Tags = cloneStrings(f.Tags)
 	return cloned
 }
 

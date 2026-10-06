@@ -8,13 +8,14 @@ import (
 )
 
 type createFormulaRequest struct {
-	Name                  string  `json:"name"`
-	Style                 string  `json:"style"`
-	TargetOriginalGravity float64 `json:"target_original_gravity"`
-	TargetFinalGravity    float64 `json:"target_final_gravity"`
-	MaxFermentationTempC  float64 `json:"max_fermentation_temp_c"`
-	MinimumDays           int     `json:"minimum_days"`
-	MaximumDays           int     `json:"maximum_days"`
+	Name                  string   `json:"name"`
+	Style                 string   `json:"style"`
+	TargetOriginalGravity float64  `json:"target_original_gravity"`
+	TargetFinalGravity    float64  `json:"target_final_gravity"`
+	MaxFermentationTempC  float64  `json:"max_fermentation_temp_c"`
+	MinimumDays           int      `json:"minimum_days"`
+	MaximumDays           int      `json:"maximum_days"`
+	Tags                  []string `json:"tags"`
 }
 
 type setStepsRequest struct {
@@ -35,6 +36,7 @@ func registerFormulaRoutes(mux *http.ServeMux, app *service.Service) {
 			MaxFermentationTempC:  body.MaxFermentationTempC,
 			MinimumDays:           body.MinimumDays,
 			MaximumDays:           body.MaximumDays,
+			Tags:                  body.Tags,
 		})
 		if err != nil {
 			writeDomainError(response, err)

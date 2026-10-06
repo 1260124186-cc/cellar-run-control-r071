@@ -19,6 +19,7 @@ type Store struct {
 	path     string
 	snapshot domain.Snapshot
 	now      func() time.Time
+	hooks    []func(revision int64)
 }
 
 func Open(dataDir string) (*Store, error) {
@@ -148,26 +149,54 @@ func (s *Store) View(visitor func(domain.Snapshot) error) error {
 }
 
 func (s *Store) Update(expected *int64, mutate func(*domain.Snapshot) error) error {
+	committed, err := s.commit(expected, mutate)
+	if err != nil {
+		return err
+	}
+	s.notify(committed)
+	return nil
+}
+
+func (s *Store) commit(expected *int64, mutate func(*domain.Snapshot) error) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if expected != nil && *expected != s.snapshot.Revision {
-		return domain.NewError(domain.CodeRevisionConflict,
+		return 0, domain.NewError(domain.CodeRevisionConflict,
 			"the supplied revision does not match the current snapshot")
 	}
 	candidate := s.snapshot.Clone()
 	if err := mutate(&candidate); err != nil {
-		return err
+		return 0, err
 	}
 	candidate.Revision = s.snapshot.Revision + 1
 	candidate.UpdatedAt = s.now()
 	if err := writeSnapshot(s.path, candidate); err != nil {
-		return domain.NewError(domain.CodeStorage, err.Error())
+		return 0, domain.NewError(domain.CodeStorage, err.Error())
 	}
 	s.snapshot = candidate
-	return nil
+	return candidate.Revision, nil
 }
 
 func (s *Store) Execute(mutator func(*domain.Snapshot) error) error {
 	return s.Update(nil, mutator)
+}
+
+// OnCommit registers a revision notifier. Hooks run after the snapshot has
+// been durably committed and published, without holding the store mutex, so a
+// slow derived index can never block or deadlock a write.
+func (s *Store) OnCommit(hook func(revision int64)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hooks = append(s.hooks, hook)
+}
+
+func (s *Store) notify(revision int64) {
+	s.mu.RLock()
+	hooks := make([]func(int64), 0, len(s.hooks))
+	hooks = append(hooks, s.hooks...)
+	s.mu.RUnlock()
+	for _, hook := range hooks {
+		hook(revision)
+	}
 }

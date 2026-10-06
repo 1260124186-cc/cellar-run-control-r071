@@ -7,6 +7,7 @@ import (
 
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/clock"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/httpapi"
+	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/search"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/service"
 	"github.com/1260124186-cc/solo-0016-cellar-run-control/internal/storage"
 )
@@ -23,6 +24,12 @@ func Run(name string) error {
 		return err
 	}
 	app := service.New(store, clock.System{})
+	index, err := search.NewEngine(store, clock.System{}.Now)
+	if err != nil {
+		return err
+	}
+	defer index.Stop()
+	app.AttachSearchIndex(index)
 	server := httptest.NewServer(httpapi.NewHandler(app))
 	defer server.Close()
 	api := newClient(server.URL)
@@ -38,6 +45,10 @@ func Run(name string) error {
 		}
 	case "observations-completion":
 		if err := observationsCompletion(api); err != nil {
+			return err
+		}
+	case "search-index":
+		if err := searchIndex(api); err != nil {
 			return err
 		}
 	default:

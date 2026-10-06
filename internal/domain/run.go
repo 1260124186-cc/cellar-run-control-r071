@@ -20,6 +20,7 @@ type FermentationRun struct {
 	VesselID       *string              `json:"vessel_id,omitempty"`
 	PlannedVolumeL float64              `json:"planned_volume_liters"`
 	Notes          string               `json:"notes,omitempty"`
+	Tags           []string             `json:"tags"`
 	State          RunState             `json:"state"`
 	StartedAt      *time.Time           `json:"started_at,omitempty"`
 	EndedAt        *time.Time           `json:"ended_at,omitempty"`
@@ -33,6 +34,7 @@ type FermentationRun struct {
 func (r FermentationRun) Clone() FermentationRun {
 	cloned := r
 	cloned.Observations = append([]GravityObservation(nil), r.Observations...)
+	cloned.Tags = cloneStrings(r.Tags)
 	if r.VesselID != nil {
 		value := *r.VesselID
 		cloned.VesselID = &value
