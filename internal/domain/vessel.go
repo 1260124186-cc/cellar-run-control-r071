@@ -15,6 +15,7 @@ const (
 type Vessel struct {
 	ID          string      `json:"id"`
 	Code        string      `json:"code"`
+	Tags        []string    `json:"tags,omitempty"`
 	CapacityL   float64     `json:"capacity_liters"`
 	State       VesselState `json:"state"`
 	ActiveRunID *string     `json:"active_run_id,omitempty"`

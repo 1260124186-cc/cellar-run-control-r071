@@ -9,6 +9,7 @@ import (
 type CreateFormulaInput struct {
 	Name                  string
 	Style                 string
+	Tags                  []string
 	TargetOriginalGravity float64
 	TargetFinalGravity    float64
 	MaxFermentationTempC  float64
@@ -27,14 +28,23 @@ type VersionInput struct {
 
 type CreateVesselInput struct {
 	Code      string
+	Tags      []string
 	CapacityL float64
 }
 
 type CreateRunInput struct {
 	Code           string
+	Tags           []string
 	FormulaID      string
 	PlannedVolumeL float64
 	Notes          string
+}
+
+// SetTagsInput carries search-metadata edits. Tags are retrieval metadata and
+// may be changed in every lifecycle state.
+type SetTagsInput struct {
+	ExpectedVersion *int64
+	Tags            []string
 }
 
 type ReserveRunInput struct {

@@ -62,6 +62,7 @@ func serve() error {
 		return err
 	}
 	app := service.New(store, clock.System{})
+	defer app.Close()
 	server := &http.Server{
 		Addr:              cfg.Address,
 		Handler:           httpapi.NewHandler(app),

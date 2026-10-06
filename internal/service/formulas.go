@@ -9,9 +9,13 @@ import (
 
 func (s *Service) CreateFormula(input CreateFormulaInput) (domain.Formula, error) {
 	now := s.clock.Now()
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.Formula{}, err
+	}
 	formula := domain.Formula{
 		Name:                  input.Name,
 		Style:                 input.Style,
+		Tags:                  domain.NormalizeTags(input.Tags),
 		TargetOriginalGravity: input.TargetOriginalGravity,
 		TargetFinalGravity:    input.TargetFinalGravity,
 		MaxFermentationTempC:  input.MaxFermentationTempC,
@@ -34,7 +38,7 @@ func (s *Service) CreateFormula(input CreateFormulaInput) (domain.Formula, error
 	formula.ID = id
 	nameKey := domain.NameKey(formula.Name)
 
-	err = s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err = s.mutate(func(snapshot *domain.Snapshot) error {
 		if _, exists := snapshot.NameIndex[nameKey]; exists {
 			return domain.NewError(domain.CodeFormulaNameConflict,
 				"a formula with the same normalized name already exists")
@@ -54,7 +58,7 @@ func (s *Service) SetFormulaSteps(
 	input SetFormulaStepsInput,
 ) (domain.Formula, error) {
 	var updated domain.Formula
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		formula, ok := snapshot.Formulas[id]
 		if !ok {
 			return domain.NewError(domain.CodeFormulaNotFound, "formula was not found")
@@ -78,7 +82,7 @@ func (s *Service) SetFormulaSteps(
 
 func (s *Service) ApproveFormula(id string, input VersionInput) (domain.Formula, error) {
 	var updated domain.Formula
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		formula, ok := snapshot.Formulas[id]
 		if !ok {
 			return domain.NewError(domain.CodeFormulaNotFound, "formula was not found")
@@ -101,7 +105,7 @@ func (s *Service) ApproveFormula(id string, input VersionInput) (domain.Formula,
 
 func (s *Service) RetireFormula(id string, input VersionInput) (domain.Formula, error) {
 	var updated domain.Formula
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		formula, ok := snapshot.Formulas[id]
 		if !ok {
 			return domain.NewError(domain.CodeFormulaNotFound, "formula was not found")
@@ -169,4 +173,29 @@ func (s *Service) ListFormulas() ([]domain.Formula, error) {
 func timestampPointer(value time.Time) *time.Time {
 	copy := value.UTC()
 	return &copy
+}
+
+func (s *Service) SetFormulaTags(id string, input SetTagsInput) (domain.Formula, error) {
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.Formula{}, err
+	}
+	tags := domain.NormalizeTags(input.Tags)
+	var updated domain.Formula
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
+		formula, ok := snapshot.Formulas[id]
+		if !ok {
+			return domain.NewError(domain.CodeFormulaNotFound, "formula was not found")
+		}
+		if err := s.checkExpected(formula.Version, input.ExpectedVersion); err != nil {
+			return err
+		}
+		formula.ReplaceTags(tags, s.clock.Now())
+		snapshot.Formulas[id] = formula
+		updated = formula.Clone()
+		return nil
+	})
+	if err != nil {
+		return domain.Formula{}, err
+	}
+	return updated, nil
 }

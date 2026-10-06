@@ -8,8 +8,12 @@ import (
 
 func (s *Service) CreateVessel(input CreateVesselInput) (domain.Vessel, error) {
 	now := s.clock.Now()
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.Vessel{}, err
+	}
 	vessel := domain.Vessel{
 		Code:      domain.NormalizeVesselCode(input.Code),
+		Tags:      domain.NormalizeTags(input.Tags),
 		CapacityL: input.CapacityL,
 		State:     domain.VesselAvailable,
 		Version:   1,
@@ -25,7 +29,7 @@ func (s *Service) CreateVessel(input CreateVesselInput) (domain.Vessel, error) {
 	}
 	vessel.ID = id
 
-	err = s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err = s.mutate(func(snapshot *domain.Snapshot) error {
 		if _, exists := snapshot.VesselIndex[vessel.Code]; exists {
 			return domain.NewError(domain.CodeVesselConflict,
 				"a vessel with the same code already exists")
@@ -82,7 +86,7 @@ func (s *Service) FinishCleaning(
 	input FinishCleaningInput,
 ) (domain.Vessel, error) {
 	var updated domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		vessel, ok := snapshot.Vessels[id]
 		if !ok {
 			return domain.NewError(domain.CodeVesselNotFound, "vessel was not found")
@@ -118,7 +122,7 @@ func (s *Service) FinishCleaning(
 
 func (s *Service) RetireVessel(id string, input VersionInput) (domain.Vessel, error) {
 	var updated domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		vessel, ok := snapshot.Vessels[id]
 		if !ok {
 			return domain.NewError(domain.CodeVesselNotFound, "vessel was not found")
@@ -129,6 +133,31 @@ func (s *Service) RetireVessel(id string, input VersionInput) (domain.Vessel, er
 		if err := vessel.Retire(s.clock.Now()); err != nil {
 			return err
 		}
+		snapshot.Vessels[id] = vessel
+		updated = vessel
+		return nil
+	})
+	if err != nil {
+		return domain.Vessel{}, err
+	}
+	return updated, nil
+}
+
+func (s *Service) SetVesselTags(id string, input SetTagsInput) (domain.Vessel, error) {
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.Vessel{}, err
+	}
+	tags := domain.NormalizeTags(input.Tags)
+	var updated domain.Vessel
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
+		vessel, ok := snapshot.Vessels[id]
+		if !ok {
+			return domain.NewError(domain.CodeVesselNotFound, "vessel was not found")
+		}
+		if err := s.checkExpected(vessel.Version, input.ExpectedVersion); err != nil {
+			return err
+		}
+		vessel.ReplaceTags(tags, s.clock.Now())
 		snapshot.Vessels[id] = vessel
 		updated = vessel
 		return nil

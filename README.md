@@ -54,6 +54,7 @@ internal/clock                 time boundary
 internal/config                environment configuration
 internal/domain                entities, validation, transitions, metrics
 internal/httpapi               HTTP routes, JSON decoding, errors
+internal/search                rebuildable in-memory search index and cursors
 internal/service               use-case orchestration
 internal/storage               revisioned snapshot persistence
 internal/workflowcheck         real HTTP production checks
@@ -93,6 +94,56 @@ Run workflow:
 - `POST /v1/runs/{id}/conditioning`
 - `POST /v1/runs/{id}/complete`
 - `POST /v1/runs/{id}/abort`
+- `PUT /v1/runs/{id}/tags`
+
+Search:
+
+- `GET /v1/search`
+
+Tag metadata:
+
+- `PUT /v1/formulas/{id}/tags`
+- `PUT /v1/vessels/{id}/tags`
+- `PUT /v1/runs/{id}/tags`
+
+Formulas, vessels, and runs also accept `tags` when created. Tags are
+case-folded, whitespace-normalized retrieval metadata (at most 24 entries of
+40 characters each), editable in every lifecycle state, and do not affect the
+immutable process fields of an approved formula.
+
+### Search
+
+`GET /v1/search` covers formula names and styles, vessel codes, run codes, and
+tags. Query parameters are all optional and combine with AND semantics:
+
+- `q`: tokenized free text; every term must match (Chinese is matched with
+  unigram/bigram analysis, codes with and without punctuation, e.g. `vsl-301`
+  or `vsl301`).
+- `kind`: repeat or comma-separate `formula`, `vessel`, `run`.
+- `state`: repeat or comma-separate lifecycle states.
+- `vessel_code`: limit vessels and runs to one vessel code (runs join their
+  current vessel).
+- `tag`: repeat to require tags.
+- `sort`: `label` (default) or `updated`; `order`: `asc` (default) or `desc`.
+- `limit`: 1 to 100 (default 25); `cursor`: opaque next-page cursor from the
+  previous response.
+- `include_archived=true`: also return retired formulas/vessels and
+  completed/aborted runs (hidden by default).
+
+Results are deterministically ordered by `(sort key, kind, id)`, so paging is
+stable; a cursor is bound to its sort/order and is rejected otherwise. Each
+result carries `kind`, `id`, `label`, `state`, `tags`, and a `detail_url` that
+opens the authoritative detail record, plus the snapshot `revision` the page
+was rendered from.
+
+The index is a pure, rebuildable projection of the snapshot: it is rebuilt in
+the background after writes (bursts coalesce), constructed fully and then
+atomically swapped, and rebuilt from scratch on startup without being
+persisted itself. Every recalled candidate is re-admitted against the current
+snapshot before it is returned, so a lagging or mid-rebuild index never
+surfaces an archived/missing object or attributes a run to another vessel.
+While the first generation is still building the endpoint answers
+`503 search_index_unavailable`; retry shortly.
 
 Writes accept an optional `X-Expected-Version` header. Errors use a stable
 shape:
@@ -115,6 +166,7 @@ Run each production workflow check separately:
 go run ./cmd/fermentctl check formula-approval
 go run ./cmd/fermentctl check vessel-run-lifecycle
 go run ./cmd/fermentctl check observations-completion
+go run ./cmd/fermentctl check search-index
 ```
 
 Each check creates a temporary snapshot directory, starts the real HTTP

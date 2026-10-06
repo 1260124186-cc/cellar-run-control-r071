@@ -8,10 +8,11 @@ import (
 )
 
 type createRunRequest struct {
-	Code           string  `json:"code"`
-	FormulaID      string  `json:"formula_id"`
-	PlannedVolumeL float64 `json:"planned_volume_liters"`
-	Notes          string  `json:"notes"`
+	Code           string   `json:"code"`
+	Tags           []string `json:"tags"`
+	FormulaID      string   `json:"formula_id"`
+	PlannedVolumeL float64  `json:"planned_volume_liters"`
+	Notes          string   `json:"notes"`
 }
 
 type reserveRunRequest struct {
@@ -34,6 +35,7 @@ func registerRunRoutes(mux *http.ServeMux, app *service.Service) {
 		}
 		run, err := app.CreateRun(service.CreateRunInput{
 			Code:           body.Code,
+			Tags:           body.Tags,
 			FormulaID:      body.FormulaID,
 			PlannedVolumeL: body.PlannedVolumeL,
 			Notes:          body.Notes,
@@ -156,5 +158,23 @@ func registerRunRoutes(mux *http.ServeMux, app *service.Service) {
 			return
 		}
 		writeJSON(response, http.StatusOK, map[string]any{"run": run, "vessel": vessel})
+	})
+
+	mux.HandleFunc("PUT /v1/runs/{id}/tags", func(response http.ResponseWriter, request *http.Request) {
+		body, err := decodeJSON[setTagsRequest](response, request)
+		if !handleDecode(response, err) {
+			return
+		}
+		expected, err := expectedVersion(request)
+		if !handleDecode(response, err) {
+			return
+		}
+		run, err := app.SetRunTags(request.PathValue("id"),
+			service.SetTagsInput{ExpectedVersion: expected, Tags: body.Tags})
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, run)
 	})
 }

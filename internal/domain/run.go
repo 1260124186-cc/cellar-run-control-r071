@@ -16,6 +16,7 @@ const (
 type FermentationRun struct {
 	ID             string               `json:"id"`
 	Code           string               `json:"code"`
+	Tags           []string             `json:"tags,omitempty"`
 	FormulaID      string               `json:"formula_id"`
 	VesselID       *string              `json:"vessel_id,omitempty"`
 	PlannedVolumeL float64              `json:"planned_volume_liters"`
@@ -33,6 +34,7 @@ type FermentationRun struct {
 func (r FermentationRun) Clone() FermentationRun {
 	cloned := r
 	cloned.Observations = append([]GravityObservation(nil), r.Observations...)
+	cloned.Tags = append([]string(nil), r.Tags...)
 	if r.VesselID != nil {
 		value := *r.VesselID
 		cloned.VesselID = &value

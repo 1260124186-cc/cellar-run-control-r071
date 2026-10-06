@@ -23,6 +23,7 @@ func Run(name string) error {
 		return err
 	}
 	app := service.New(store, clock.System{})
+	defer app.Close()
 	server := httptest.NewServer(httpapi.NewHandler(app))
 	defer server.Close()
 	api := newClient(server.URL)
@@ -38,6 +39,10 @@ func Run(name string) error {
 		}
 	case "observations-completion":
 		if err := observationsCompletion(api); err != nil {
+			return err
+		}
+	case "search-index":
+		if err := searchIndex(api); err != nil {
 			return err
 		}
 	default:

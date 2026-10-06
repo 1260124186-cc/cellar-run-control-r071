@@ -25,6 +25,7 @@ type Formula struct {
 	ID                    string        `json:"id"`
 	Name                  string        `json:"name"`
 	Style                 string        `json:"style"`
+	Tags                  []string      `json:"tags,omitempty"`
 	TargetOriginalGravity float64       `json:"target_original_gravity"`
 	TargetFinalGravity    float64       `json:"target_final_gravity"`
 	MaxFermentationTempC  float64       `json:"max_fermentation_temp_c"`
@@ -42,6 +43,7 @@ type Formula struct {
 func (f Formula) Clone() Formula {
 	cloned := f
 	cloned.Steps = append([]FormulaStep(nil), f.Steps...)
+	cloned.Tags = append([]string(nil), f.Tags...)
 	return cloned
 }
 

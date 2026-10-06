@@ -7,7 +7,7 @@ func (s *Service) AppendObservation(
 	input ObservationInput,
 ) (domain.FermentationRun, error) {
 	var updated domain.FermentationRun
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")
@@ -40,7 +40,7 @@ func (s *Service) BeginConditioning(
 	input VersionInput,
 ) (domain.FermentationRun, error) {
 	var updated domain.FermentationRun
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")
@@ -67,7 +67,7 @@ func (s *Service) CompleteRun(
 ) (domain.FermentationRun, domain.Vessel, error) {
 	var updatedRun domain.FermentationRun
 	var updatedVessel domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")

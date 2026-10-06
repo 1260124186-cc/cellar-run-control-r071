@@ -24,10 +24,10 @@ deferred to a later engineering task.
 
 ### Formula
 
-A formula contains an identifier, normalized name, style label, target original
-gravity, target final gravity, maximum fermentation temperature, minimum and
-maximum planned days, ordered process steps, lifecycle state, version, and
-timestamps.
+A formula contains an identifier, normalized name, style label, search tags,
+target original gravity, target final gravity, maximum fermentation
+temperature, minimum and maximum planned days, ordered process steps,
+lifecycle state, version, and timestamps.
 
 States are `draft`, `approved`, and `retired`.
 
@@ -47,8 +47,8 @@ States are `draft`, `approved`, and `retired`.
 
 ### Vessel
 
-A vessel contains an identifier, unique display code, capacity in liters,
-lifecycle state, active run identifier, version, and timestamps.
+A vessel contains an identifier, unique display code, search tags, capacity in
+liters, lifecycle state, active run identifier, version, and timestamps.
 
 States are `available`, `reserved`, `in_use`, `cleaning`, and `retired`.
 
@@ -63,9 +63,10 @@ States are `available`, `reserved`, `in_use`, `cleaning`, and `retired`.
 
 ### FermentationRun
 
-A run contains an identifier, unique run code, an approved formula identifier,
-an optional vessel identifier, planned volume, notes, lifecycle state,
-timetable, ordered observations, final metrics, version, and timestamps.
+A run contains an identifier, unique run code, search tags, an approved
+formula identifier, an optional vessel identifier, planned volume, notes,
+lifecycle state, timetable, ordered observations, final metrics, version, and
+timestamps.
 
 States are `planned`, `reserved`, `fermenting`, `conditioning`, `completed`,
 and `aborted`.
@@ -96,6 +97,14 @@ time, gravity, temperature, optional note, and receipt time.
 - Observation times strictly increase within a run.
 - Gravity must not rise more than 0.010 above the immediately preceding value.
 - Observation sequences are contiguous and start at 1.
+
+### Search Tags
+
+Formulas, vessels, and runs each carry a list of search tags. Tags are
+case-folded and whitespace-normalized like formula names, deduplicated,
+limited to 24 entries of 40 characters each, and treated purely as retrieval
+metadata. They can be replaced in any lifecycle state (including retired or
+completed records) and never change a formula's approved process data.
 
 ## Connected Workflows
 
@@ -150,6 +159,35 @@ transitions return stable failures without changing persisted state.
 This path crosses HTTP protocol handling, application orchestration, numeric
 domain rules, and snapshot storage.
 
+### 4. Rebuildable Search
+
+Public entry points are:
+
+- `GET /v1/search`
+- `PUT /v1/formulas/{id}/tags`
+- `PUT /v1/vessels/{id}/tags`
+- `PUT /v1/runs/{id}/tags`
+
+The operator searches formula names and styles, vessel codes, run codes, and
+tags, optionally narrowed by kind, lifecycle state, and vessel code, with
+keyset cursors over a stable `(sort key, kind, id)` order. Each result links
+straight to its detail endpoint.
+
+The search index is a derived, never-persisted projection rebuilt from the
+snapshot. Rebuilds run in the background, coalesce under write bursts, are
+built completely, and are then atomically swapped, so an interrupted rebuild
+or a restart never publishes a half index. Search recalls candidate
+references from the current generation and re-admits every one against the
+live snapshot (existence, text, tags, state, vessel join, archived flag)
+within a single snapshot view. A lagging index therefore never returns an
+object that has been retired or otherwise disappeared, and never reports a run
+under another vessel's facts. Terminal records are hidden unless
+`include_archived` is set. While the first generation is still building,
+search answers `503 search_index_unavailable`.
+
+This path crosses HTTP query handling, use-case orchestration, the derived
+search projection, and the authoritative snapshot read.
+
 ## Modules
 
 - `cmd/fermentctl`: executable entry point for the HTTP service and bounded
@@ -158,6 +196,8 @@ domain rules, and snapshot storage.
 - `internal/clock`: deterministic clock boundary for production and checks.
 - `internal/domain`: entities, validation, state transitions, and metrics.
 - `internal/service`: use-case orchestration and revision coordination.
+- `internal/search`: rebuildable in-memory projection, text analysis, and
+  cursor pagination.
 - `internal/storage`: snapshot repository, atomic replacement, and locking.
 - `internal/httpapi`: routing, strict JSON decoding, error mapping, and health.
 - `internal/workflowcheck`: real HTTP workflow checks used by the executable.
@@ -165,6 +205,8 @@ domain rules, and snapshot storage.
 The dependency direction is:
 
 `cmd -> workflowcheck/httpapi -> service -> domain`
+
+`service -> search -> domain`
 
 `service -> storage`
 
@@ -210,13 +252,18 @@ task owns systematic tests for validation boundaries, state transitions,
 numeric calculations, stale revisions, storage failures, and concurrent
 reservation attempts.
 
-The current build command is `go build ./...`. Three bounded production checks
+The current build command is `go build ./...`. Four bounded production checks
 start the real HTTP handler, issue real JSON requests, check success and failure
 behavior, and exit without external services:
 
 - `go run ./cmd/fermentctl check formula-approval`
 - `go run ./cmd/fermentctl check vessel-run-lifecycle`
 - `go run ./cmd/fermentctl check observations-completion`
+- `go run ./cmd/fermentctl check search-index`
+
+The `internal/search` package additionally has focused unit tests for text
+analysis (CJK grams and code folding), cursor shape binding, keyset paging,
+stale-generation reconciliation, and coalesced rebuilds.
 
 ## Scope Limits
 

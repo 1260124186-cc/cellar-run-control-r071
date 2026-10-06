@@ -8,6 +8,9 @@ import (
 
 func (s *Service) CreateRun(input CreateRunInput) (domain.FermentationRun, error) {
 	now := s.clock.Now()
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.FermentationRun{}, err
+	}
 	code := domain.NormalizeRunCode(input.Code)
 	if code == "" {
 		generated, err := generatedRunCode()
@@ -18,6 +21,7 @@ func (s *Service) CreateRun(input CreateRunInput) (domain.FermentationRun, error
 	}
 	run := domain.FermentationRun{
 		Code:           code,
+		Tags:           domain.NormalizeTags(input.Tags),
 		FormulaID:      input.FormulaID,
 		PlannedVolumeL: input.PlannedVolumeL,
 		Notes:          input.Notes,
@@ -36,7 +40,7 @@ func (s *Service) CreateRun(input CreateRunInput) (domain.FermentationRun, error
 	}
 	run.ID = id
 
-	err = s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err = s.mutate(func(snapshot *domain.Snapshot) error {
 		formula, ok := snapshot.Formulas[run.FormulaID]
 		if !ok {
 			return domain.NewError(domain.CodeFormulaNotFound, "formula was not found")
@@ -65,7 +69,7 @@ func (s *Service) ReserveRun(
 ) (domain.FermentationRun, domain.Vessel, error) {
 	var updatedRun domain.FermentationRun
 	var updatedVessel domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")
@@ -105,7 +109,7 @@ func (s *Service) StartRun(
 ) (domain.FermentationRun, domain.Vessel, error) {
 	var updatedRun domain.FermentationRun
 	var updatedVessel domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")
@@ -144,7 +148,7 @@ func (s *Service) AbortRun(
 ) (domain.FermentationRun, domain.Vessel, error) {
 	var updatedRun domain.FermentationRun
 	var updatedVessel domain.Vessel
-	err := s.store.Execute(func(snapshot *domain.Snapshot) error {
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
 		run, ok := snapshot.Runs[id]
 		if !ok {
 			return domain.NewError(domain.CodeRunNotFound, "run was not found")
@@ -216,4 +220,29 @@ func (s *Service) ListRuns() ([]domain.FermentationRun, error) {
 		return runs[i].Code < runs[j].Code
 	})
 	return runs, nil
+}
+
+func (s *Service) SetRunTags(id string, input SetTagsInput) (domain.FermentationRun, error) {
+	if err := domain.ValidateTags(input.Tags); err != nil {
+		return domain.FermentationRun{}, err
+	}
+	tags := domain.NormalizeTags(input.Tags)
+	var updated domain.FermentationRun
+	err := s.mutate(func(snapshot *domain.Snapshot) error {
+		run, ok := snapshot.Runs[id]
+		if !ok {
+			return domain.NewError(domain.CodeRunNotFound, "run was not found")
+		}
+		if err := s.checkExpected(run.Version, input.ExpectedVersion); err != nil {
+			return err
+		}
+		run.ReplaceTags(tags, s.clock.Now())
+		snapshot.Runs[id] = run.Clone()
+		updated = run.Clone()
+		return nil
+	})
+	if err != nil {
+		return domain.FermentationRun{}, err
+	}
+	return updated, nil
 }

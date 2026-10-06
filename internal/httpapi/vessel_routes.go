@@ -7,8 +7,9 @@ import (
 )
 
 type createVesselRequest struct {
-	Code      string  `json:"code"`
-	CapacityL float64 `json:"capacity_liters"`
+	Code      string   `json:"code"`
+	Tags      []string `json:"tags"`
+	CapacityL float64  `json:"capacity_liters"`
 }
 
 func registerVesselRoutes(mux *http.ServeMux, app *service.Service) {
@@ -19,6 +20,7 @@ func registerVesselRoutes(mux *http.ServeMux, app *service.Service) {
 		}
 		vessel, err := app.CreateVessel(service.CreateVesselInput{
 			Code:      body.Code,
+			Tags:      body.Tags,
 			CapacityL: body.CapacityL,
 		})
 		if err != nil {
@@ -67,6 +69,24 @@ func registerVesselRoutes(mux *http.ServeMux, app *service.Service) {
 		}
 		vessel, err := app.RetireVessel(request.PathValue("id"),
 			service.VersionInput{ExpectedVersion: expected})
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, vessel)
+	})
+
+	mux.HandleFunc("PUT /v1/vessels/{id}/tags", func(response http.ResponseWriter, request *http.Request) {
+		body, err := decodeJSON[setTagsRequest](response, request)
+		if !handleDecode(response, err) {
+			return
+		}
+		expected, err := expectedVersion(request)
+		if !handleDecode(response, err) {
+			return
+		}
+		vessel, err := app.SetVesselTags(request.PathValue("id"),
+			service.SetTagsInput{ExpectedVersion: expected, Tags: body.Tags})
 		if err != nil {
 			writeDomainError(response, err)
 			return

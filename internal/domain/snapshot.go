@@ -33,12 +33,12 @@ func (s Snapshot) Clone() Snapshot {
 		cloned.Formulas[key] = value.Clone()
 	}
 	for key, value := range s.Vessels {
-		cloned.Vessels[key] = value
+		value.Tags = append([]string(nil), value.Tags...)
 		if value.ActiveRunID != nil {
 			runID := *value.ActiveRunID
-			cloned.Vessels[key] = value
-			cloned.Vessels[key] = withActiveRun(value, &runID)
+			value.ActiveRunID = &runID
 		}
+		cloned.Vessels[key] = value
 	}
 	for key, value := range s.Runs {
 		cloned.Runs[key] = value.Clone()
@@ -53,15 +53,4 @@ func (s Snapshot) Clone() Snapshot {
 		cloned.RunIndex[key] = value
 	}
 	return cloned
-}
-
-func withActiveRun(v Vessel, runID *string) Vessel {
-	value := v
-	if runID == nil {
-		value.ActiveRunID = nil
-		return value
-	}
-	copied := *runID
-	value.ActiveRunID = &copied
-	return value
 }
